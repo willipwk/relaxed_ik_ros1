@@ -60,8 +60,10 @@ class RvizViewer:
             settings['starting_config'] = [0] * len(self.robot.articulated_joint_names)
         else:
             self.starting_config = settings['starting_config']
-
-        self.ee_poses =  self.robot.fk(settings['starting_config'])
+        self.chains_def = settings['chains_def']
+        starting_config_translated = self.translate_config(settings['starting_config'], self.chains_def)
+        # self.ee_poses =  self.robot.fk(settings['starting_config'])
+        self.ee_poses = self.robot.fk(starting_config_translated)
         for i in range(self.robot.num_chain):
             pose_goal_marker = make_marker('arm_'+str(i), settings['base_links'][i],
                  'widget', [0.1,0.1,0.1], self.ee_poses[i], False)
@@ -113,6 +115,17 @@ class RvizViewer:
         for i in range(self.robot.num_chain):
             self.server.setPose('arm_'+str(i), self.ee_poses[i])
         self.server.applyChanges()
+        
+    def translate_config(self, joint_angles, chains_def):
+        """
+        Handle cases where there are duplicate articulated joints in different chains
+        """
+        ja_out = []
+        for chain in chains_def:
+            for joint_idx in chain:
+                ja_out.append(joint_angles[joint_idx])
+                
+        return ja_out
 
 def make_marker(name, fixed_frame, shape, scale, pose, is_dynamic, 
                 points=None, color=[0.0,0.5,0.5,1.0], marker_scale=0.3):                
@@ -152,6 +165,7 @@ def make_marker(name, fixed_frame, shape, scale, pose, is_dynamic,
     return int_marker
 
 if __name__ == '__main__':
+    print("RVIZ_VIEWER.PY")
     rospy.init_node('rviz_viewer')
     rviz_viewer = RvizViewer()
     rospy.spin()

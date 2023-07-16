@@ -56,9 +56,12 @@ class Robot():
                 joint = arm_chain.getSegment(j).getJoint()
                 # 8 is fixed joint   
                 if joint.getType() != 8:
-                    self.articulated_joint_names.append(joint.getName())
+                    joint_name = joint.getName()
+                    if joint_name not in self.articulated_joint_names:
+                        self.articulated_joint_names.append(joint_name)
 
         if 'starting_config' in settings:
+            print(self.articulated_joint_names, settings['starting_config'])
             assert len(self.articulated_joint_names) == len(settings['starting_config']), \
                         "Number of joints parsed from urdf should be the same with the starting config in the setting file."
 

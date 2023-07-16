@@ -2,7 +2,7 @@
 
 import ctypes
 import numpy as np
-import os
+import os, time
 import rospkg
 import rospy
 import sys
@@ -124,7 +124,6 @@ class RelaxedIK:
             self.vis_ee_pub.publish(vis_msg)
 
         ik_solution = self.relaxed_ik.solve_position(positions, orientations, tolerances)
-
         self.js_msg.header.stamp = rospy.Time.now()
         self.js_msg.position = ik_solution
         self.angles_pub.publish(self.js_msg)
@@ -162,9 +161,11 @@ class RelaxedIK:
             else:
                 for j in range(6):
                     tolerances.append(0.0)
-
+        t0 = time.time()
         ik_solution = self.relaxed_ik.solve_position(positions, orientations, tolerances)
-
+        # print(self.robot.articulated_joint_names)
+        print(ik_solution)
+        print(f"{(time.time() - t0)*1000:.2f}ms")
         # Publish the joint angle solution
         self.js_msg.header.stamp = rospy.Time.now()
         self.js_msg.position = ik_solution
@@ -203,5 +204,6 @@ class RelaxedIK:
 
 if __name__ == '__main__':
     rospy.init_node('relaxed_ik')
+    print("RELAXED_IK_RUST.PY")
     relaxed_ik = RelaxedIK()
     rospy.spin()

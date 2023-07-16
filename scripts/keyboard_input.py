@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#! /usr/bin/env python3
 
 import readchar
 import rospy
@@ -9,6 +9,7 @@ from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals
 import transformations as T
 from robot import Robot
 from pynput import keyboard
+import numpy as np
 
 path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
 
@@ -24,8 +25,8 @@ class KeyboardInput:
 
         self.ee_vel_goals_pub = rospy.Publisher('relaxed_ik/ee_vel_goals', EEVelGoals, queue_size=5)
 
-        self.pos_stride = 0.005
-        self.rot_stride = 0.010
+        self.pos_stride = 0.05
+        self.rot_stride = 0.10
 
         self.seq = 1
         
@@ -37,7 +38,7 @@ class KeyboardInput:
             on_release = self.on_release)
 
         rospy.Timer(rospy.Duration(0.033), self.timer_callback)
-
+        print("starting listener")
         keyboard_listener.start()
 
     def on_press(self, key):
@@ -107,6 +108,6 @@ class KeyboardInput:
         
 if __name__ == '__main__':
     rospy.init_node('keyboard_input')
-
+    print("init node complete!")
     keyboard = KeyboardInput()
     rospy.spin()

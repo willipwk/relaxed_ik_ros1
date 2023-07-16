@@ -62,9 +62,10 @@ class TraceALine:
 
         self.robot = Robot(setting_file_path)
         self.starting_ee_poses =  self.robot.fk(settings['starting_config'])
-
+        print(self.starting_ee_poses[0])
+        print(self.starting_ee_poses[1])
         self.trajectory = self.generate_trajectory()
-
+        # print(self.trajectory)
         if self.use_topic_not_service:
             self.ee_pose_pub = rospy.Publisher('relaxed_ik/ee_pose_goals', EEPoseGoals, queue_size=5)
         else:
@@ -99,11 +100,16 @@ class TraceALine:
         for i in range(4):
             for j in range(num_points):
                 poses = self.copy_poses(self.starting_ee_poses)
-                for k in range(self.robot.num_chain):
+                for k in range(self.robot.num_chain - 1):
                     poses[k].position.z = z[k]
                     poses[k].position.y = y[k]
                     z[k] += dz[i]
                     y[k] += dy[i]
+                for k in range(self.robot.num_chain - 1, self.robot.num_chain):
+                    poses[k].position.z = z[k]
+                    poses[k].position.y = y[k]
+                    z[k] += dz[i] * 0.5
+                    y[k] += dy[i] * 0.5
                 trajectory.append(poses)
 
         return trajectory
