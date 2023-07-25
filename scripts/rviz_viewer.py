@@ -30,9 +30,9 @@ geometry_folder_path = path_to_src + '/geometry_files/'
 time_cur = 0.0
 
 def print_cb(msg):
-    # p = msg.pose.position
-    # print(msg.marker_name + " is now at [" + str(p.x) + ", " + str(p.y) + ", " + str(p.z) + "]")
-    pass
+    p = msg.pose.position
+    print(msg.marker_name + " is now at [" + str(p.x) + ", " + str(p.y) + ", " + str(p.z) + "]")
+    
     
 def set_collision_world(server:InteractiveMarkerServer, fixed_frame, env_settings):
     dyn_obs_handles = []
@@ -73,7 +73,7 @@ def set_collision_world(server:InteractiveMarkerServer, fixed_frame, env_setting
                     is_dynamic = 1
                 else:
                     is_dynamic = 2
-                int_marker = make_marker(s['name'], fixed_frame, "sphere", [s['scale']] * 3, 
+                int_marker = make_marker_env(s['name'], fixed_frame, "sphere", [s['scale']] * 3, 
                                         s['translation'], [1.0,0.0,0.0,0.0], is_dynamic)
                 server.insert(int_marker, print_cb)
                 if is_dynamic == 2:
@@ -107,7 +107,7 @@ def set_collision_world(server:InteractiveMarkerServer, fixed_frame, env_setting
                 else:
                     is_dynamic = 2
                 pc_quat = T.quaternion_from_euler(pc['rotation'][0], pc['rotation'][1], pc['rotation'][2])
-                int_marker = make_marker(pc['name'], fixed_frame, "point_cloud", [0.01, 0.01, 0.01], pc['translation'], pc_quat, is_dynamic, points=pc_points)
+                int_marker = make_marker_env(pc['name'], fixed_frame, "point_cloud", [0.01, 0.01, 0.01], pc['translation'], pc_quat, is_dynamic, points=pc_points)
                 server.insert(int_marker, print_cb)
                 if is_dynamic == 2:
                     path = animation_folder_path + pc['animation']
@@ -164,6 +164,7 @@ class RvizViewer:
                  'widget', [0.1,0.1,0.1], self.ee_poses[i], False)
             self.server.insert(pose_goal_marker)
 
+        print(self.robot.fk_all_frames(starting_config_translated))
         # wait for robot state publisher to start
         rospy.sleep(2.0)
         
@@ -186,18 +187,18 @@ class RvizViewer:
         
         delta_time = 0.01
         
-        # while not rospy.is_shutdown():
+        while not rospy.is_shutdown():
 
-        #     if True:
-        #         updated = False
-        #         for (name, waypoints) in dyn_obs_handles:
-        #             if time_cur < len(waypoints) * delta_time:
-        #                 (time, pose) = utils.linear_interpolate_waypoints(waypoints, int(time_cur / delta_time))
-        #                 self.server.setPose(name, pose)
-        #                 updated = True
+            if True:
+                updated = False
+                for (name, waypoints) in dyn_obs_handles:
+                    if time_cur < len(waypoints) * delta_time:
+                        (time, pose) = utils.linear_interpolate_waypoints(waypoints, int(time_cur / delta_time))
+                        self.server.setPose(name, pose)
+                        updated = True
 
-        #         if updated:
-        #             self.server.applyChanges()
+                if updated:
+                    self.server.applyChanges()
 
     def ja_solution_cb(self, msg):
         self.js_msg.header.stamp = rospy.Time.now()

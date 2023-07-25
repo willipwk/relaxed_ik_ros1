@@ -59,7 +59,7 @@ class KeyboardInput:
         
         self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]]
         # self.orientation = [[3.14,0,0],[0,0,0]]
-        self.orientation = [[3.14159,0,0],[0,0,0]]
+        self.orientation = [[0,0,0],[0,0,0]]
         
         try:
             tolerances = rospy.get_param('~tolerances')

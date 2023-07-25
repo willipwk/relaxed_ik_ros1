@@ -10,7 +10,7 @@ import transformations as T
 import yaml
 
 from relaxed_ik_ros1.srv import IKPose, IKPoseResponse
-from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals
+from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight
 from geometry_msgs.msg import Point
 from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState 
@@ -18,10 +18,12 @@ from urdf_parser_py.urdf import URDF
 from kdl_parser import kdl_tree_from_urdf_model
 import PyKDL as kdl
 from robot import Robot
+from visualization_msgs.msg import InteractiveMarkerFeedback, InteractiveMarkerUpdate
 
 path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
 sys.path.insert(1, path_to_src + '/wrappers')
-from python_wrapper import RelaxedIKRust
+from python_wrapper import RelaxedIKRust, lib
+
 
 class RelaxedIK:
     def __init__(self):
@@ -80,11 +82,18 @@ class RelaxedIK:
             for i in range(len(self.js_msg.name)):
                 self.js_msg.position.append( settings['starting_config'][i] )
         
+        self.weight_names  = self.relaxed_ik.get_objective_weight_names()
+        self.weight_priors = self.relaxed_ik.get_objective_weight_priors()
+        
         # Subscribers
         rospy.Subscriber('/relaxed_ik/ee_pose_goals', EEPoseGoals, self.pose_goals_cb)
         rospy.Subscriber('/relaxed_ik/ee_vel_goals', EEVelGoals, self.pose_vels_cb)
         rospy.Subscriber('/relaxed_ik/reset', JointState, self.reset_cb)
-
+        rospy.Subscriber('/relaxed_ik/ik_update_weight', IKUpdateWeight, self.ik_update_weight_cb)
+        
+        rospy.Subscriber('/simple_marker/feedback', InteractiveMarkerFeedback, self.marker_feedback_cb)
+        rospy.Subscriber('/simple_marker/update', InteractiveMarkerUpdate, self.marker_update_cb)
+        
         print("\nSolver RelaxedIK initialized!\n")
 
     def get_ee_pose(self):
@@ -164,8 +173,8 @@ class RelaxedIK:
         t0 = time.time()
         ik_solution = self.relaxed_ik.solve_position(positions, orientations, tolerances)
         # print(self.robot.articulated_joint_names)
-        print(ik_solution)
-        print(f"{(time.time() - t0)*1000:.2f}ms")
+        # print(ik_solution)
+        # print(f"{(time.time() - t0)*1000:.2f}ms")
         # Publish the joint angle solution
         self.js_msg.header.stamp = rospy.Time.now()
         self.js_msg.position = ik_solution
@@ -202,8 +211,40 @@ class RelaxedIK:
         self.js_msg.position = ik_solution
         self.angles_pub.publish(self.js_msg)
 
+    def marker_feedback_cb(self, msg):
+        
+        # Call the rust callback function
+        self.relaxed_ik.dynamic_obstacle_cb(msg.marker_name, msg.pose)
+
+    def marker_update_cb(self, msg):
+        # update dynamic collision obstacles in relaxed IK
+        for pose_stamped in msg.poses:
+            # Call the rust callback function
+            # print(pose_stamped.name, pos_arr[0],pos_arr[1],pos_arr[2])
+            self.relaxed_ik.dynamic_obstacle_cb(pose_stamped.name, pose_stamped.pose)
+    
+    def ik_update_weight_cb(self, msg):
+        self.update_objective_weights({
+            msg.weight_name : msg.value
+        })
+    
+    def update_objective_weights(self, weights_dict: dict):
+        print(weights_dict)
+        for i in range(len(self.weight_names)):
+            weight_name = self.weight_names[i]
+            if weight_name in weights_dict:
+                self.weight_priors[i] = weights_dict[weight_name]
+        self.relaxed_ik.set_objective_weight_priors(self.weight_priors)
+            
+    
+    
 if __name__ == '__main__':
     rospy.init_node('relaxed_ik')
     print("RELAXED_IK_RUST.PY")
     relaxed_ik = RelaxedIK()
+    # relaxed_ik.update_objective_weights({
+    #     'eepos' : 100.0
+    # })
+    print(relaxed_ik.relaxed_ik.get_objective_weight_names())
+    print(relaxed_ik.relaxed_ik.get_objective_weight_priors())
     rospy.spin()

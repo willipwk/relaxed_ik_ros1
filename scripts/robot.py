@@ -118,6 +118,57 @@ class Robot():
         
         return poses
 
+    def fk_single_chain_all_frames(self, chain, all_joint_angles):
+        # assert len(joint_angles) == num_jnts, "length of input: {}, number of joints: {}".format(len(joint_angles), num_jnts)
+    
+        
+        joint_frames = []
+    
+        sub_chain = PyKDL.Chain()
+
+        for i in range(chain.getNrOfSegments()):
+
+            sub_chain.addSegment(chain.getSegment(i))
+
+            fk_solver = PyKDL.ChainFkSolverPos_recursive(sub_chain)
+            joint_angles = PyKDL.JntArray(sub_chain.getNrOfJoints())
+
+
+            for j in range(sub_chain.getNrOfJoints()):
+                joint_angles[j] = all_joint_angles[j]
+
+
+            frame = PyKDL.Frame()
+
+   
+            fk_solver.JntToCart(joint_angles, frame)
+
+            pos = frame.p
+            rot = PyKDL.Rotation(frame.M)
+            rot = rot.GetQuaternion()
+            pose = Pose()
+            pose.position.x = pos[0]
+            pose.position.y = pos[1]
+            pose.position.z = pos[2]
+            pose.orientation.x = rot[0]
+            pose.orientation.y = rot[1]
+            pose.orientation.z = rot[2]
+            pose.orientation.w = rot[3]
+            joint_frames.append(pose)
+
+        return joint_frames
+
+    def fk_all_frames(self, joint_angles):
+        l = 0
+        r = 0
+        poses = []
+        for i in range(self.num_chain):
+            r += self.num_jnts[i]
+            pose = self.fk_single_chain_all_frames(self.arm_chains[i], joint_angles[l:r])
+            l = r
+            poses.append(pose)
+        return poses
+    
     def get_joint_state_msg(self, joint_angles):
         js = JointState()
         js.header.stamp = rospy.Time.now()

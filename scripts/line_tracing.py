@@ -61,9 +61,10 @@ class TraceALine:
         rospy.set_param('robot_description', urdf_string)
 
         self.robot = Robot(setting_file_path)
-        self.starting_ee_poses =  self.robot.fk(settings['starting_config'])
-        print(self.starting_ee_poses[0])
-        print(self.starting_ee_poses[1])
+        self.chains_def = settings['chains_def']
+        starting_config_translated = self.translate_config(settings['starting_config'], self.chains_def)
+        # self.ee_poses =  self.robot.fk(settings['starting_config'])
+        self.starting_ee_poses = self.robot.fk(starting_config_translated)
         self.trajectory = self.generate_trajectory()
         # print(self.trajectory)
         if self.use_topic_not_service:
@@ -103,13 +104,21 @@ class TraceALine:
                 for k in range(self.robot.num_chain - 1):
                     poses[k].position.z = z[k]
                     poses[k].position.y = y[k]
+                    ( poses[k].orientation.x, 
+                      poses[k].orientation.y,
+                      poses[k].orientation.z,
+                      poses[k].orientation.w ) = (0, 0, 0, 1)  
                     z[k] += dz[i]
                     y[k] += dy[i]
                 for k in range(self.robot.num_chain - 1, self.robot.num_chain):
                     poses[k].position.z = z[k]
                     poses[k].position.y = y[k]
-                    z[k] += dz[i] * 0.5
-                    y[k] += dy[i] * 0.5
+                    z[k] += dz[i] 
+                    y[k] += dy[i] 
+                    ( poses[k].orientation.x, 
+                      poses[k].orientation.y,
+                      poses[k].orientation.z,
+                      poses[k].orientation.w ) = (0, 0, 0, 1)
                 trajectory.append(poses)
 
         return trajectory
@@ -161,7 +170,17 @@ class TraceALine:
             ik_solutions = self.ik_pose_service(req)
 
         self.trajectory_index += 1
-
+    def translate_config(self, joint_angles, chains_def):
+        """
+        Handle cases where there are duplicate articulated joints in different chains
+        """
+        ja_out = []
+        for chain in chains_def:
+            for joint_idx in chain:
+                ja_out.append(joint_angles[joint_idx])
+                
+        return ja_out
+    
 if __name__ == '__main__':
     rospy.init_node('LineTracing')
     trace_a_line = TraceALine()
