@@ -1,5 +1,5 @@
 # Relaxed IK ROS1
-
+## See install_guide.md if ROS is not needed
 ## Introduction
 
 You can find an introduction and the citation information of RelaxedIK in the README of [RelaxedIK Core](https://github.com/uwgraphics/relaxed_ik_core) which is a submodule of this repo. It is recommended to look at [RelaxedIK Core](https://github.com/uwgraphics/relaxed_ik_core) before working with this wrapper.
