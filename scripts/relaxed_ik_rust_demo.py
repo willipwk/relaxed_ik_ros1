@@ -1,8 +1,6 @@
-#! /usr/bin/env python3
-
 import ctypes
 import numpy as np
-import os, time
+import os, time, sys
 import sys
 import transformations as T
 import yaml
@@ -12,10 +10,14 @@ from kdl_parser import kdl_tree_from_urdf_model
 import PyKDL as kdl
 from robot import Robot
 
-path_to_src = '/home/ubuntu/rangedik_project/src/relaxed_ik_ros1/relaxed_ik_core'
-sys.path.insert(1, path_to_src + '/wrappers')
-# from relaxed_ik_core.wrappers.python_wrapper import RelaxedIKRust, lib
-from python_wrapper import RelaxedIKRust, lib
+
+# make python find the package
+sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)) + '/../')
+from relaxed_ik_core.wrappers.python_wrapper import RelaxedIKRust, lib
+
+
+path_to_src = os.path.dirname(os.path.abspath(__file__)) + '/../relaxed_ik_core'
+print(path_to_src)
 
 class RelaxedIKDemo:
     def __init__(self):
@@ -34,13 +36,12 @@ class RelaxedIKDemo:
         urdf_file = open(path_to_src + '/configs/urdfs/' + settings["urdf"], 'r')
         urdf_string = urdf_file.read()
         
-
-        self.relaxed_ik = RelaxedIKRust(setting_file_path)
-
       
         self.robot = Robot(setting_file_path, path_to_src, use_ros=False)
-        print(f"Robot Articulated Joint names:{self.robot.articulated_joint_names}")
+        print(f"Robot Articulated Joint names: {self.robot.articulated_joint_names}")
         
+        print('\nInitialize Solver...\n')
+        self.relaxed_ik = RelaxedIKRust(setting_file_path)
 
         if 'starting_config' not in settings:
             settings['starting_config'] = [0.0] * len(self.robot.articulated_joint_names)
@@ -94,8 +95,12 @@ class RelaxedIKDemo:
     
 if __name__ == '__main__':
     relaxed_ik = RelaxedIKDemo()
-    positions = [1.0, -0.5, 0.8, 1.0, 0.5, 0.8]    # x0 y0 z0 x1 y1 z1
-    orientations = [0.0, 0.0 ,0.0, 1.0, 0.0, 0.0 ,0.0, 1.0]
-    tolerances = [0,0,0,0,0,0,0,0,0,0,0,0]
+    # N = number of end effectors. N = 2 in this example
+    # positions: 3*N 
+    # orientations: 4*N (quaternions)
+    # tolerances: 6*N
+    positions = [1.0, -0.5, 0.8, 1.0, 0.5, 0.8]               # x0 y0 z0 x1 y1 z1
+    orientations = [0.0, 0.0 ,0.0, 1.0, 0.0, 0.0 ,0.0, 1.0]   # x0 y0 z0 w0 x1 y1 z1 w1
+    tolerances = [0,0,0,0,0,0,0,0,0,0,0,0]                    
     
     print("Joint Angles:", relaxed_ik.solve_pose_goals(positions, orientations, tolerances))

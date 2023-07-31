@@ -32,7 +32,7 @@
 
 import numpy as np
 
-import rospy
+# import rospy
 
 import PyKDL as kdl
 
@@ -60,7 +60,9 @@ def urdf_pose_to_kdl_frame(pose):
 def urdf_joint_to_kdl_joint(jnt):
     origin_frame = urdf_pose_to_kdl_frame(jnt.origin)
     if jnt.joint_type == 'fixed':
-        return kdl.Joint(jnt.name, getattr(kdl.Joint, 'None'))
+        # Use None instead of Fixed if PyKDL version is old/incompatible
+        # return kdl.Joint(jnt.name, getattr(kdl.Joint, 'None'))
+        return kdl.Joint(jnt.name, getattr(kdl.Joint, 'Fixed'))
     axis = kdl.Vector(*[float(s) for s in jnt.axis])
     if jnt.joint_type == 'revolute':
         return kdl.Joint(jnt.name, origin_frame.p,
