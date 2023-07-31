@@ -197,8 +197,9 @@ class TraceALine:
                     'minvel'  : 0.5,
                     'minacc'  : 0.3,
                     'minjerk' : 0.1,
-                    'selfcollision' : 0.05,
-                    'selfcollision_ee' : 0.1,
+                    'selfcollision' : 0.01,
+                    'selfcollision_ee' : 0.05,
+                    'envcollision': 0.5,
                     'maxmanip' : 3.0,
                 })
                 num_empty_updates -= 1
@@ -209,6 +210,7 @@ class TraceALine:
                     'minacc'  : 0.5,
                     'minjerk' : 0.3,
                     'selfcollision_ee' : 0.5,
+                    'envcollision': 10.0,
                     'jointlimit' : 3.0,
                 })
                 num_empty_updates -= 1

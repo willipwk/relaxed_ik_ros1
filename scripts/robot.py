@@ -2,13 +2,13 @@
 
 import numpy as np
 import os
-import rospkg
-import rospy
+# import rospkg
+# import rospy
 import transformations as T
 
-from geometry_msgs.msg import Pose, Vector3
-from std_msgs.msg import Float32MultiArray, Bool, String
-from sensor_msgs.msg import JointState
+# from geometry_msgs.msg import Pose, Vector3
+# from std_msgs.msg import Float32MultiArray, Bool, String
+
 from timeit import default_timer as timer
 from urdf_parser_py.urdf import URDF
 import PyKDL
@@ -16,8 +16,14 @@ from kdl_parser import kdl_tree_from_urdf_model
 import yaml
 
 class Robot():
-    def __init__(self, setting_path = None):
-        path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
+    def __init__(self, setting_path=None, path_to_src=None, use_ros=True):
+        if use_ros:
+            import rospkg
+            path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
+        elif path_to_src is not None:
+            pass
+        else:
+            raise ValueError("path_to_src is not passed, and ROS is not installed so project path not known.")
         setting_file_path = path_to_src + '/configs/settings.yaml'
         if setting_path != '':
            setting_file_path = setting_path
@@ -84,6 +90,7 @@ class Robot():
             self.num_jnts.append(arm_chain.getNrOfJoints())
 
     def fk_single_chain(self, fk_p_kdl, joint_angles, num_jnts):
+        from geometry_msgs.msg import Pose
         assert len(joint_angles) == num_jnts, "length of input: {}, number of joints: {}".format(len(joint_angles), num_jnts)
     
         kdl_array = PyKDL.JntArray(num_jnts)
@@ -121,7 +128,7 @@ class Robot():
     def fk_single_chain_all_frames(self, chain, all_joint_angles):
         # assert len(joint_angles) == num_jnts, "length of input: {}, number of joints: {}".format(len(joint_angles), num_jnts)
     
-        
+        from geometry_msgs.msg import Pose
         joint_frames = []
     
         sub_chain = PyKDL.Chain()
@@ -170,8 +177,10 @@ class Robot():
         return poses
     
     def get_joint_state_msg(self, joint_angles):
+        from sensor_msgs.msg import JointState
+        from rospy import Time as rospyTime
         js = JointState()
-        js.header.stamp = rospy.Time.now()
+        js.header.stamp = rospyTime.now()
         js.name = self._joint_names
         js.position = joint_angles
         return js
