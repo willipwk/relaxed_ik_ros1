@@ -4,21 +4,41 @@ import csv
 import ctypes
 import numpy as np
 import os
-import rospkg
-import rospy
+
 import sys
 import transformations as T
 import yaml
-
+import argparse
 from timeit import default_timer as timer
-from geometry_msgs.msg import Pose, Twist, Vector3
-from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight
-from relaxed_ik_ros1.srv import IKPoseRequest,  IKPose
-from robot import Robot
+
 from math_utils import get_quaternion_from_euler, euler_from_quaternion, slerp, unpack_pose_xyz_euler
 
+parser = argparse.ArgumentParser(
+                    prog='traj_tracing',
+                    )
+parser.add_argument('--no_ros',
+                    action='store_true')
+args = parser.parse_args()
 
-path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
+if not args.no_ros:
+    import rospkg
+    import rospy
+    from geometry_msgs.msg import Pose, Twist, Vector3
+    from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight
+    from relaxed_ik_ros1.srv import IKPoseRequest,  IKPose
+else:
+    from math_utils import Pose7d as Pose
+    # make python find the package
+    sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)) + '/../')
+    from relaxed_ik_rust_demo import RelaxedIKDemo as ik_solver
+
+from robot import Robot
+
+
+if args.no_ros:
+    path_to_src = os.path.dirname(os.path.abspath(__file__)) + '/../relaxed_ik_core'
+else:
+    path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
 
 
 class TraceALine:
@@ -49,13 +69,17 @@ class TraceALine:
 
         assert len(tolerances) % 6 == 0, "The number of tolerances should be a multiple of 6"
         for i in range(int(len(tolerances) / 6)):
-            self.tolerances.append(Twist(   Vector3(tolerances[i*6],    tolerances[i*6+1], tolerances[i*6+2]), 
-                                            Vector3(tolerances[i*6+3],  tolerances[i*6+4], tolerances[i*6+5])))
+            if not args.no_ros:  
+                self.tolerances.append(Twist(   Vector3(tolerances[i*6],    tolerances[i*6+1], tolerances[i*6+2]), 
+                                                Vector3(tolerances[i*6+3],  tolerances[i*6+4], tolerances[i*6+5])))
+            else:
+                self.tolerances.append([tolerances[i*6],    tolerances[i*6+1], tolerances[i*6+2], 
+                                        tolerances[i*6+3],  tolerances[i*6+4], tolerances[i*6+5]])
 
         deault_setting_file_path = path_to_src + '/configs/settings.yaml'
 
-        setting_file_path = rospy.get_param('setting_file_path')
-
+        # setting_file_path = rospy.get_param('setting_file_path')
+        setting_file_path = ''
         if setting_file_path == '':
             setting_file_path = deault_setting_file_path
 
@@ -66,9 +90,11 @@ class TraceALine:
         
         urdf_file = open(path_to_src + '/configs/urdfs/' + settings["urdf"], 'r')
         urdf_string = urdf_file.read()
-        rospy.set_param('robot_description', urdf_string)
+        
+        if not args.no_ros:
+            rospy.set_param('robot_description', urdf_string)
 
-        self.robot = Robot(setting_file_path)
+        self.robot = Robot(setting_file_path, use_ros=not args.no_ros, path_to_src=path_to_src)
         self.chains_def = settings['chains_def']
         starting_config_translated = self.translate_config(settings['starting_config'], self.chains_def)
         # self.ee_poses =  self.robot.fk(settings['starting_config'])
@@ -101,7 +127,7 @@ class TraceALine:
             trajs_with_init = trajs
             for i, traj in enumerate(trajs):
                 traj_lengths.append(len(trajs[i]))
-        print(trajs_with_init)
+        # print(trajs_with_init)
         
         # fill trajectory with initial position if provided trajs are less than num of arms
         if len(trajs_with_init) < self.robot.num_chain:
@@ -123,27 +149,32 @@ class TraceALine:
         print(len(self.trajectory),len(self.weight_updates))
         assert(len(self.trajectory) == len(self.weight_updates))
         
-        
-        if self.use_topic_not_service:
-            self.ee_pose_pub = rospy.Publisher('relaxed_ik/ee_pose_goals', EEPoseGoals, queue_size=5)
-        else:
-            rospy.wait_for_service('relaxed_ik/solve_pose')
-            self.ik_pose_service = rospy.ServiceProxy('relaxed_ik/solve_pose', IKPose)
-        self.ik_weight_pub = rospy.Publisher('relaxed_ik/ik_update_weight', IKUpdateWeight, queue_size=128)
-        
-        
-        count_down_rate = rospy.Rate(1)
-        count_down = 3
-        while not rospy.is_shutdown():
-            print("Start line tracing in {} seconds".format(count_down))
-            count_down -= 1
-            if count_down == 0:
-                break
-            count_down_rate.sleep()
-
         self.trajectory_index = 0
-        self.timer = rospy.Timer(rospy.Duration(self.time_between / self.num_per_goal), self.timer_callback)
+        
+        if not args.no_ros:
+            # ROS is present
+            if self.use_topic_not_service:
+                self.ee_pose_pub = rospy.Publisher('relaxed_ik/ee_pose_goals', EEPoseGoals, queue_size=5)
+            else:
+                rospy.wait_for_service('relaxed_ik/solve_pose')
+                self.ik_pose_service = rospy.ServiceProxy('relaxed_ik/solve_pose', IKPose)
+                self.ik_weight_pub = rospy.Publisher('relaxed_ik/ik_update_weight', IKUpdateWeight, queue_size=128)
+        
+            count_down_rate = rospy.Rate(1)
+            count_down = 3
+            while not rospy.is_shutdown():
+                print("Start line tracing in {} seconds".format(count_down))
+                count_down -= 1
+                if count_down == 0:
+                    break
+                count_down_rate.sleep()
 
+            self.timer = rospy.Timer(rospy.Duration(self.time_between / self.num_per_goal), self.timer_callback)
+            self.relaxed_ik = None
+        else:
+            # No ROS, initialize the IK in this process:
+            self.ik_solver = ik_solver(path_to_src)
+            # print(self.trajectory)
     def generate_trajectory(self, trajs, num_per_goal):
         
         assert len(trajs) == self.robot.num_chain
@@ -274,7 +305,34 @@ class TraceALine:
             ik_solutions = self.ik_pose_service(req)
 
         self.trajectory_index += 1
+    
+    def get_ik_list_from_traj(self):
+        """
+        Generate list of IK solutions from trajectory without the need of ROS.
+        """
+        assert self.ik_solver is not None, "IK Solver not initialized."
+        assert args.no_ros, "This method is for no-ROS mode"
         
+        for j in range(len(self.trajectory)):
+            positions = []
+            orientations = []
+            tolerances = []
+            ik_solutions = []
+            for i in range(self.robot.num_chain):
+                positions.extend(self.trajectory[j][i].position.tolist())
+                orientations.extend(self.trajectory[j][i].orientation.tolist())
+                if i < len(self.tolerances):
+                    tolerances.extend(self.tolerances[i])
+                else:
+                    tolerances.extend(self.tolerances[0])
+            
+            self.ik_solver.update_objective_weights(self.weight_updates[j])
+            # print(positions, orientations, tolerances)
+            ik_solutions.append(self.ik_solver.solve_pose_goals(positions, orientations, tolerances))
+            print(j)
+            
+        return ik_solutions
+    
     def translate_config(self, joint_angles, chains_def):
         """
         Handle cases where there are duplicate articulated joints in different chains
@@ -287,6 +345,12 @@ class TraceALine:
         return ja_out
     
 if __name__ == '__main__':
-    rospy.init_node('LineTracing')
+    if not args.no_ros:
+        rospy.init_node('LineTracing')
     trace_a_line = TraceALine()
-    rospy.spin()
+    
+    if not args.no_ros:
+        rospy.spin()
+        
+    if args.no_ros:
+        trace_a_line.get_ik_list_from_traj()

@@ -16,11 +16,10 @@ sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)) + '/../')
 from relaxed_ik_core.wrappers.python_wrapper import RelaxedIKRust, lib
 
 
-path_to_src = os.path.dirname(os.path.abspath(__file__)) + '/../relaxed_ik_core'
-print(path_to_src)
+
 
 class RelaxedIKDemo:
-    def __init__(self):
+    def __init__(self, path_to_src):
 
 
         setting_file_path = path_to_src + '/configs/settings.yaml'
@@ -84,6 +83,8 @@ class RelaxedIKDemo:
         })
     
     def update_objective_weights(self, weights_dict: dict):
+        if not weights_dict:
+            return 
         print(weights_dict)
         for i in range(len(self.weight_names)):
             weight_name = self.weight_names[i]
@@ -94,7 +95,9 @@ class RelaxedIKDemo:
     
     
 if __name__ == '__main__':
-    relaxed_ik = RelaxedIKDemo()
+    path_to_src = os.path.dirname(os.path.abspath(__file__)) + '/../relaxed_ik_core'
+    print(path_to_src)
+    relaxed_ik = RelaxedIKDemo(path_to_src)
     # N = number of end effectors. N = 2 in this example
     # positions: 3*N 
     # orientations: 4*N (quaternions)

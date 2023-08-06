@@ -24,6 +24,8 @@ class Robot():
             pass
         else:
             raise ValueError("path_to_src is not passed, and ROS is not installed so project path not known.")
+        self.use_ros = use_ros
+        
         setting_file_path = path_to_src + '/configs/settings.yaml'
         if setting_path != '':
            setting_file_path = setting_path
@@ -90,7 +92,10 @@ class Robot():
             self.num_jnts.append(arm_chain.getNrOfJoints())
 
     def fk_single_chain(self, fk_p_kdl, joint_angles, num_jnts):
-        from geometry_msgs.msg import Pose
+        if self.use_ros:
+            from geometry_msgs.msg import Pose
+        else:
+            from math_utils import Pose7d as Pose
         assert len(joint_angles) == num_jnts, "length of input: {}, number of joints: {}".format(len(joint_angles), num_jnts)
     
         kdl_array = PyKDL.JntArray(num_jnts)
