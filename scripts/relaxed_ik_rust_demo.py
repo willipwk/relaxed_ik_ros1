@@ -67,6 +67,20 @@ class RelaxedIKDemo:
         for i in range(n):
             x[i] = msg.position[i]
         self.relaxed_ik.reset(x)
+    
+    def reset(self, joint_angles):
+        n = len(joint_angles)
+        x = (ctypes.c_double * n)()
+        for i in range(n):
+            x[i] = joint_angles[i]
+        return self.relaxed_ik.reset(x)
+    
+    def query_loss(self, joint_angles):
+        n = len(joint_angles)
+        x = (ctypes.c_double * n)()
+        for i in range(n):
+            x[i] = joint_angles[i]
+        return self.relaxed_ik.get_jointstate_loss(x)
 
     def solve_pose_goals(self, positions, orientations, tolerances):
         # t0 = time.time()

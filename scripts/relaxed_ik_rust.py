@@ -171,6 +171,7 @@ class RelaxedIK:
                 for j in range(6):
                     tolerances.append(0.0)
         t0 = time.time()
+        print(positions)
         ik_solution = self.relaxed_ik.solve_position(positions, orientations, tolerances)
         # print(self.robot.articulated_joint_names)
         # print(ik_solution)
