@@ -1,0 +1,1 @@
+python scripts/traj_tracing.py --no_ros -i init_positions/ep1_init_ub_positions_list.npy -t traj_files/traject_6d_5_left0.npy traj_files/traject_6d_5_right0.npy 

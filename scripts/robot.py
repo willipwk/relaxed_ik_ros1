@@ -56,6 +56,7 @@ class Robot():
         self.articulated_joint_names = []
         assert len(settings['base_links']) == len(settings['ee_links']) 
         self.num_chain = len(settings['base_links'])
+        self.num_active_chains = sum(map(lambda x: 1 if x else 0, settings['is_active_chain']))
 
         for i in range(self.num_chain):
             arm_chain = self.kdl_tree.getChain( settings['base_links'][i],

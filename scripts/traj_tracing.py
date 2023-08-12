@@ -19,7 +19,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--no_ros',
                     action='store_true')
 
-parser.add_argument('--init',type=str)
+parser.add_argument('-t', '--traj', nargs='+', help='<Required> Trajectory files    ', required=True)
+parser.add_argument('-i', '--init',type=str, help='initial config for the robot')
 
 args = parser.parse_args()
 
@@ -130,8 +131,11 @@ class TraceALine:
         print(self.starting_ee_poses[1])
         
         trajs = []
-        for traj_file in settings["traj_files"]:
-            trajs.append(np.load(path_to_src + '/traj_files/' + traj_file) + traj_offset)
+        # for traj_file in settings["traj_files"]:
+        #     trajs.append(np.load(path_to_src + '/traj_files/' + traj_file) + traj_offset)
+        
+        for traj_name in args.traj:
+            trajs.append(np.load(path_to_src + '/traj_files/' + traj_name) + traj_offset)
 
         # print(trajs[0].shape, trajs[1].shape)
         

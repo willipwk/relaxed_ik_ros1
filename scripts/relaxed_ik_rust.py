@@ -173,9 +173,9 @@ class RelaxedIK:
         t0 = time.time()
         print(positions)
         ik_solution = self.relaxed_ik.solve_position(positions, orientations, tolerances)
-        # print(self.robot.articulated_joint_names)
-        # print(ik_solution)
-        # print(f"{(time.time() - t0)*1000:.2f}ms")
+        print(self.robot.articulated_joint_names)
+        print(ik_solution)
+        print(f"{(time.time() - t0)*1000:.2f}ms")
         # Publish the joint angle solution
         self.js_msg.header.stamp = rospy.Time.now()
         self.js_msg.position = ik_solution

@@ -157,9 +157,10 @@ class RvizViewer:
             self.starting_config = settings['starting_config']
         self.chains_def = settings['chains_def']
         starting_config_translated = self.translate_config(settings['starting_config'], self.chains_def)
+        print(starting_config_translated)
         # self.ee_poses =  self.robot.fk(settings['starting_config'])
         self.ee_poses = self.robot.fk(starting_config_translated)
-        for i in range(self.robot.num_chain):
+        for i in range(self.robot.num_active_chains):
             pose_goal_marker = make_marker('arm_'+str(i), settings['base_links'][i],
                  'widget', [0.1,0.1,0.1], self.ee_poses[i], False)
             self.server.insert(pose_goal_marker)
@@ -207,14 +208,14 @@ class RvizViewer:
         self.js_pub.publish(self.js_msg)
 
     def ee_pose_goal_cb(self, msg):
-        assert len(msg.ee_poses) == self.robot.num_chain
-        for i in range(self.robot.num_chain):
+        assert len(msg.ee_poses) == self.robot.num_active_chains
+        for i in range(self.robot.num_active_chains):
             self.ee_poses[i] = msg.ee_poses[i]
         self.update_marker()
 
     def ee_vel_goal_cb(self, msg):
-        assert len(msg.ee_vels) == self.robot.num_chain
-        for i in range(self.robot.num_chain):
+        assert len(msg.ee_vels) == self.robot.num_active_chains
+        for i in range(self.robot.num_active_chains):
             self.ee_poses[i].position.x += msg.ee_vels[i].linear.x
             self.ee_poses[i].position.y += msg.ee_vels[i].linear.y
             self.ee_poses[i].position.z += msg.ee_vels[i].linear.z
@@ -228,7 +229,7 @@ class RvizViewer:
         self.update_marker()
 
     def update_marker(self):
-        for i in range(self.robot.num_chain):
+        for i in range(self.robot.num_active_chains):
             self.server.setPose('arm_'+str(i), self.ee_poses[i])
         self.server.applyChanges()
         

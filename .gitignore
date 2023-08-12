@@ -16,3 +16,6 @@ csv_files/
 rmob_files/
 rmoo_files/
 starting_configs/
+traj_files/
+episodes/
+init_positions/

@@ -5,7 +5,7 @@ import rospy
 import rospkg
 from geometry_msgs.msg import PoseStamped, Vector3Stamped, QuaternionStamped, Pose, Twist
 from std_msgs.msg import Bool
-from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals
+from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight
 import transformations as T
 from robot import Robot
 from pynput import keyboard
@@ -50,15 +50,20 @@ class KeyboardInput:
         self.starting_ee_poses = self.robot.fk(starting_config_translated)
 
         self.ee_pose_pub = rospy.Publisher('relaxed_ik/ee_pose_goals', EEPoseGoals, queue_size=5)
-
+        self.ik_weight_pub = rospy.Publisher('relaxed_ik/ik_update_weight', IKUpdateWeight, queue_size=128)
+        
         self.pos_stride = 0.005
         self.rot_stride = 0.010
 
         self.seq = 1
         self.poses = self.copy_poses(self.starting_ee_poses)
         
-        self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]]
-        # self.orientation = [[3.14,0,0],[0,0,0]]
+        # # two arms
+        # self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]] 
+        # self.orientation = [[0,0,0],[0,0,0]]
+        
+        # two arms
+        self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]] 
         self.orientation = [[0,0,0],[0,0,0]]
         
         try:
@@ -71,7 +76,7 @@ class KeyboardInput:
         for i in range(int(len(tolerances) / 6)):
             self.tolerances.append(Twist(   Vector3(tolerances[i*6],    tolerances[i*6+1], tolerances[i*6+2]), 
                                             Vector3(tolerances[i*6+3],  tolerances[i*6+4], tolerances[i*6+5])))
-
+        
         keyboard_listener = keyboard.Listener(
             on_press = self.on_press,
             on_release = self.on_release)
@@ -79,6 +84,15 @@ class KeyboardInput:
         rospy.Timer(rospy.Duration(0.05), self.timer_callback)
         print("starting listener")
         keyboard_listener.start()
+        
+        # reduce weights of envcollision on figers. for testing purposes
+        weight_update = {f'envcollision_{arm_idx}' : 1.0 for arm_idx in [1,2,3,5,6,7]}
+        for k, v in weight_update.items():
+            msg = IKUpdateWeight()
+            msg.weight_name = k
+            msg.value = v
+            self.ik_weight_pub.publish(msg)
+        
 
     def on_press(self, key):
 
@@ -130,7 +144,8 @@ class KeyboardInput:
             self.orientation[1][2] += self.rot_stride
         elif key.char == '7':
             self.orientation[1][2] -= self.rot_stride    
-        elif key.char == 'c':
+            
+        elif key.char == ']':
             rospy.signal_shutdown()
         
         print("Position: {}, Rotation: {}".format(self.position, self.orientation))
@@ -143,7 +158,7 @@ class KeyboardInput:
     def timer_callback(self, event):
         msg = EEPoseGoals()
 
-        for i in range(self.robot.num_chain):
+        for i in range(self.robot.num_active_chains):
             poses = self.copy_poses(self.starting_ee_poses)
             poses[i].position.x = self.position[i][0]
             poses[i].position.y = self.position[i][1]
