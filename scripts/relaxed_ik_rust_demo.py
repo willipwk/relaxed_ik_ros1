@@ -53,6 +53,8 @@ class RelaxedIKDemo:
         self.weight_priors = self.relaxed_ik.get_objective_weight_priors()
         print(self.weight_names)
         print(self.weight_priors)
+        
+        print(len([1 for x in self.weight_names if 'selfcollision' in x]), 'self collision pairs')
         print("\nSolver RelaxedIK initialized!\n")
 
     def get_ee_pose(self):
@@ -122,9 +124,12 @@ if __name__ == '__main__':
     tolerances = [0,0,0,0,0,0,0,0,0,0,0,0]                    
     
     N = 100
-    t0 = time.time()
+    run_times = []
     for _ in range(N):
+        t0 = time.time()
         print("Joint Angles:", relaxed_ik.solve_pose_goals(positions, orientations, tolerances))
+        t1 = time.time()
         positions[1] += 0.001
-    t1 = time.time()
-    print(f"Average time: {(t1 - t0) / N * 1000: .3f} ms.")
+        run_times.append(t1 - t0)
+
+    print(f"Average time: {sum(run_times) / len(run_times) * 1000: .3f} ms.")

@@ -81,7 +81,7 @@ class KeyboardInput:
             on_press = self.on_press,
             on_release = self.on_release)
 
-        rospy.Timer(rospy.Duration(0.05), self.timer_callback)
+        rospy.Timer(rospy.Duration(0.1), self.timer_callback)
         print("starting listener")
         keyboard_listener.start()
         
