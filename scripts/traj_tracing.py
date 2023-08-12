@@ -35,16 +35,20 @@ else:
     from math_utils import Pose7d as Pose
     # make python find the package
     sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)) + '/../')
-    from relaxed_ik_rust_demo import RelaxedIKDemo as ik_solver
+from relaxed_ik_rust_demo import RelaxedIKDemo as ik_solver
 
 from robot import Robot
 from robot_utils import movo_jointangles_fik2rik, movo_jointangles_rik2fik
 
 if args.no_ros:
     path_to_src = os.path.dirname(os.path.abspath(__file__)) + '/../relaxed_ik_core'
+    
 else:
     path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
 
+path_to_init = os.path.dirname(os.path.abspath(__file__)) + '/../init_positions'
+path_to_episodes = os.path.dirname(os.path.abspath(__file__)) + '/../episodes'
+path_to_trajs = os.path.dirname(os.path.abspath(__file__)) + '/../traj_files'
 
 class TraceALine:
     def __init__(self, initial_poses=None):
@@ -101,16 +105,17 @@ class TraceALine:
         self.robot = Robot(setting_file_path, use_ros=not args.no_ros, path_to_src=path_to_src)
         self.chains_def = settings['chains_def']
         
-        if args.no_ros:
-            self.ik_solver = ik_solver(path_to_src)
+        #if args.no_ros:
+        self.ik_solver = ik_solver(path_to_src)
             
         
         if initial_poses is not None:
-            if args.no_ros:
+            #if args.no_ros:
+            if True:
                 min_start_loss = float('inf')
                 best_starting_config = None
                 for initial_pose in initial_poses:
-                    conf = list(movo_jointangles_fik2rik(initial_pose))
+                    conf = list(movo_jointangles_fik2rik(initial_pose, gripper_value=0.9))
                     self.ik_solver.reset(conf)
                     loss = self.ik_solver.query_loss(conf)
                     # print(loss)
@@ -135,7 +140,7 @@ class TraceALine:
         #     trajs.append(np.load(path_to_src + '/traj_files/' + traj_file) + traj_offset)
         
         for traj_name in args.traj:
-            trajs.append(np.load(path_to_src + '/traj_files/' + traj_name) + traj_offset)
+            trajs.append(np.load(path_to_trajs + '/' + traj_name) + traj_offset)
 
         # print(trajs[0].shape, trajs[1].shape)
         
@@ -163,9 +168,9 @@ class TraceALine:
         # print(trajs_with_init)
         
         # fill trajectory with initial position if provided trajs are less than num of arms
-        if len(trajs_with_init) < self.robot.num_chain:
+        if len(trajs_with_init) < self.robot.num_active_chains:
             shape0 = trajs_with_init[0].shape
-            for i in range(len(trajs_with_init), self.robot.num_chain):
+            for i in range(len(trajs_with_init), self.robot.num_active_chains):
                 trajs_with_init.append(np.tile(np.array(self.init_position[i] + self.init_orientation[i]), shape0))
                 traj_lengths.append(len(trajs_with_init[i]))
         
@@ -191,6 +196,7 @@ class TraceALine:
             
             loss = self.query_loss(starting_config)
             print("Loss:", loss)
+            print(starting_config)
             self.reset(starting_config)
         
             count_down_rate = rospy.Rate(1)
@@ -215,14 +221,14 @@ class TraceALine:
             
     def generate_trajectory(self, trajs, num_per_goal):
         
-        assert len(trajs) == self.robot.num_chain
+        assert len(trajs) == self.robot.num_active_chains
         trajectory = []
         
         
         for i in range(len(trajs[0]) - 1):
             for t in np.linspace(0, 1, num_per_goal):
                 poses = self.copy_poses(self.starting_ee_poses)
-                for k in range(self.robot.num_chain):
+                for k in range(self.robot.num_active_chains):
                     traj = trajs[k]
                     # linear interpolation
                     position_goal = (1 - t) *np.array(traj[i][:3]) + t * np.array(traj[i+1][:3]) 
@@ -324,7 +330,7 @@ class TraceALine:
 
         if self.use_topic_not_service:
             ee_pose_goals = EEPoseGoals()
-            for i in range(self.robot.num_chain):
+            for i in range(self.robot.num_active_chains):
                 ee_pose_goals.ee_poses.append(self.trajectory[self.trajectory_index][i])
                 if i < len(self.tolerances):
                     ee_pose_goals.tolerances.append(self.tolerances[i])
@@ -340,7 +346,7 @@ class TraceALine:
                 self.ik_weight_pub.publish(msg)
         else:
             req = IKPoseRequest()
-            for i in range(self.robot.num_chain):
+            for i in range(self.robot.num_active_chains):
                 req.ee_poses.append(self.trajectory[self.trajectory_index][i])
                 if i < len(self.tolerances):
                     req.tolerances.append(self.tolerances[i])
@@ -362,7 +368,7 @@ class TraceALine:
             positions = []
             orientations = []
             tolerances = []
-            for i in range(self.robot.num_chain):
+            for i in range(self.robot.num_active_chains):
                 positions.extend(self.trajectory[j][i].position.tolist())
                 orientations.extend(self.trajectory[j][i].orientation.tolist())
                 if i < len(self.tolerances):
@@ -396,7 +402,11 @@ if __name__ == '__main__':
     fpath = os.path.dirname(os.path.abspath(__file__))
     if not args.no_ros:
         rospy.init_node('LineTracing')
-    trace_a_line = TraceALine(np.load(args.init))
+    
+    initial_file = None
+    if args.init:
+        initial_file = np.load(path_to_init + '/' + args.init)
+    trace_a_line = TraceALine(initial_file)
     
     if not args.no_ros:
         rospy.spin()
