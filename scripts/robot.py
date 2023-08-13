@@ -56,6 +56,7 @@ class Robot():
         self.articulated_joint_names = []
         assert len(settings['base_links']) == len(settings['ee_links']) 
         self.num_chain = len(settings['base_links'])
+        self.is_active_chain = settings['is_active_chain']
         self.num_active_chains = sum(map(lambda x: 1 if x else 0, settings['is_active_chain']))
 
         for i in range(self.num_chain):
@@ -125,9 +126,12 @@ class Robot():
         poses = []
         for i in range(self.num_chain):
             r += self.num_jnts[i]
-            pose = self.fk_single_chain(self.fk_p_kdls[i], joint_angles[l:r], self.num_jnts[i])
+            ja = joint_angles[l:r]
+            pose = self.fk_single_chain(self.fk_p_kdls[i], ja, self.num_jnts[i])
             l = r
-            poses.append(pose)
+            if self.is_active_chain[i]:
+                print(ja)
+                poses.append(pose)
         
         return poses
 

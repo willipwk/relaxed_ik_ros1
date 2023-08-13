@@ -53,6 +53,7 @@ add_message_files(
    EEPoseGoals.msg
    EEVelGoals.msg
    IKUpdateWeight.msg
+   ResetJointAngles.msg
 )
 
 ## Generate services in the 'srv' folder

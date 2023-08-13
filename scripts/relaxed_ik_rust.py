@@ -9,8 +9,9 @@ import sys
 import transformations as T
 import yaml
 
+
 from relaxed_ik_ros1.srv import IKPose, IKPoseResponse
-from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight
+from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight, ResetJointAngles
 from geometry_msgs.msg import Point
 from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState 
@@ -88,7 +89,7 @@ class RelaxedIK:
         # Subscribers
         rospy.Subscriber('/relaxed_ik/ee_pose_goals', EEPoseGoals, self.pose_goals_cb)
         rospy.Subscriber('/relaxed_ik/ee_vel_goals', EEVelGoals, self.pose_vels_cb)
-        rospy.Subscriber('/relaxed_ik/reset', JointState, self.reset_cb)
+        rospy.Subscriber('/relaxed_ik/reset_ja', ResetJointAngles, self.reset_cb)
         rospy.Subscriber('/relaxed_ik/ik_update_weight', IKUpdateWeight, self.ik_update_weight_cb)
         
         rospy.Subscriber('/simple_marker/feedback', InteractiveMarkerFeedback, self.marker_feedback_cb)
@@ -142,11 +143,14 @@ class RelaxedIK:
         return res
 
     def reset_cb(self, msg):
-        n = len(msg.position)
+        print("got reset msg!")
+        n = len(msg.joint_angles)
         x = (ctypes.c_double * n)()
         for i in range(n):
-            x[i] = msg.position[i]
+            x[i] = msg.joint_angles[i]
         self.relaxed_ik.reset(x)
+        
+
 
     def pose_goals_cb(self, msg):
         positions = []
@@ -171,11 +175,11 @@ class RelaxedIK:
                 for j in range(6):
                     tolerances.append(0.0)
         t0 = time.time()
-        print(positions)
+        # print(positions)
         ik_solution = self.relaxed_ik.solve_position(positions, orientations, tolerances)
-        print(self.robot.articulated_joint_names)
+        # print(self.robot.articulated_joint_names)
         print(ik_solution)
-        print(f"{(time.time() - t0)*1000:.2f}ms")
+        # print(f"{(time.time() - t0)*1000:.2f}ms")
         # Publish the joint angle solution
         self.js_msg.header.stamp = rospy.Time.now()
         self.js_msg.position = ik_solution

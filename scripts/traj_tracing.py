@@ -4,12 +4,14 @@ import csv
 import ctypes
 import numpy as np
 import os
-
+import time
 import sys
 import transformations as T
 import yaml
 import argparse
 from timeit import default_timer as timer
+import pickle
+from tqdm import tqdm
 
 from math_utils import get_quaternion_from_euler, euler_from_quaternion, slerp, unpack_pose_xyz_euler
 
@@ -19,8 +21,11 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--no_ros',
                     action='store_true')
 
-parser.add_argument('-t', '--traj', nargs='+', help='<Required> Trajectory files    ', required=True)
-parser.add_argument('-i', '--init',type=str, help='initial config for the robot')
+# parser.add_argument('-t', '--traj', nargs='+', help='<Required> Trajectory files    ', required=True)
+# parser.add_argument('-i', '--init',type=str, help='initial config for the robot')
+parser.add_argument('--side', type=str, choices=["left", "right", "both"], required=True)
+parser.add_argument('--episode', type=int, choices=[1, 2, 3, 4, 5, 6], required=True)
+parser.add_argument('--map_idx', nargs='+', type=int, required=True)
 
 args = parser.parse_args()
 
@@ -29,7 +34,7 @@ if not args.no_ros:
     import rospy
     from geometry_msgs.msg import Pose, Twist, Vector3
     from sensor_msgs.msg import JointState
-    from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight
+    from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, IKUpdateWeight, ResetJointAngles
     from relaxed_ik_ros1.srv import IKPoseRequest,  IKPose
 else:
     from math_utils import Pose7d as Pose
@@ -73,7 +78,19 @@ class TraceALine:
         self.tolerances = []
         self.time_between = 2.0   # time between two keypoints
         self.num_per_goal = 50    # number of intermediate points between two keypoints
-        self.start_from_init_pose = True
+        self.start_from_init_pose = False
+        self.side = args.side
+        if self.side == "both":
+            assert len(args.map_idx) == 2
+            self.left_map_id = args.map_idx[0]
+            self.right_map_id = args.map_idx[1]
+        elif self.side == "left":
+            self.left_map_id = args.map_idx[0]
+        elif self.side == "right":
+            self.right_map_id = args.map_idx[0]
+        else:
+            raise NotImplementedError()
+        self.episode = args.episode
         traj_offset = np.array([0,0,0.0,0,0,0])
 
         assert len(tolerances) % 6 == 0, "The number of tolerances should be a multiple of 6"
@@ -107,15 +124,22 @@ class TraceALine:
         
         #if args.no_ros:
         self.ik_solver = ik_solver(path_to_src)
-            
         
-        if initial_poses is not None:
+        initial_ik = None
+        if self.side == "both":
+            initial_ik = initial_poses[self.left_map_id][self.right_map_id]
+        elif self.side == "left":
+            initial_ik = initial_poses[self.left_map_id]
+        elif self.side == "right":
+            initial_ik = initial_poses[self.right_map_id]
+        
+        if initial_ik is not None:
             #if args.no_ros:
             if True:
                 min_start_loss = float('inf')
                 best_starting_config = None
-                for initial_pose in initial_poses:
-                    conf = list(movo_jointangles_fik2rik(initial_pose, gripper_value=0.9))
+                for ik in initial_ik:
+                    conf = list(movo_jointangles_fik2rik(ik, gripper_value=0.9))
                     self.ik_solver.reset(conf)
                     loss = self.ik_solver.query_loss(conf)
                     # print(loss)
@@ -132,15 +156,19 @@ class TraceALine:
         starting_config_translated = self.translate_config(starting_config, self.chains_def)
         self.starting_ee_poses = self.robot.fk(starting_config_translated)
         print(starting_config)
-        print(self.starting_ee_poses[0])
-        print(self.starting_ee_poses[1])
+        print(self.starting_ee_poses)
         
         trajs = []
         # for traj_file in settings["traj_files"]:
         #     trajs.append(np.load(path_to_src + '/traj_files/' + traj_file) + traj_offset)
         
-        for traj_name in args.traj:
-            trajs.append(np.load(path_to_trajs + '/' + traj_name) + traj_offset)
+        # for traj_name in args.traj:
+        #     trajs.append(np.load(path_to_trajs + '/' + traj_name) + traj_offset)
+        if self.side == "both":
+            trajs.append(np.load(f"{path_to_trajs}/traject_6d_{self.episode}_right{self.left_map_id}.npy"))
+            trajs.append(np.load(f"{path_to_trajs}/traject_6d_{self.episode}_left{self.right_map_id}.npy"))
+        else:
+            trajs.append(np.load(f"{path_to_trajs}/traject_6d_{self.episode}_{self.side}{self.left_map_id}.npy"))
 
         # print(trajs[0].shape, trajs[1].shape)
         
@@ -156,11 +184,23 @@ class TraceALine:
         traj_lengths = []
         
         if self.start_from_init_pose:
-            for i, traj in enumerate(trajs):
-                init_pos = np.array(self.init_position[i] + self.init_orientation[i])
-                trajs_with_init.append(np.vstack([init_pos, init_pos, traj[0], traj]))
+            # for i, traj in enumerate(trajs):
+            if self.side == "left":
+                init_pos = np.array(self.init_position[1] + self.init_orientation[1])
+                trajs_with_init.append(np.vstack([init_pos, init_pos, trajs[0][0], trajs[0]]))
                 # trajs_with_init.append(np.vstack([init_pos, init_pos]))
-                traj_lengths.append(len(trajs_with_init[i]))
+                traj_lengths.append(len(trajs_with_init[0]))
+            elif self.side == "right":
+                init_pos = np.array(self.init_position[0] + self.init_orientation[0])
+                trajs_with_init.append(np.vstack([init_pos, init_pos, trajs[0][0], trajs[0]]))
+                # trajs_with_init.append(np.vstack([init_pos, init_pos]))
+                traj_lengths.append(len(trajs_with_init[0]))
+            else:
+                for i, traj in enumerate(trajs):
+                    init_pos = np.array(self.init_position[i] + self.init_orientation[i])
+                    trajs_with_init.append(np.vstack([init_pos, init_pos, traj[0], traj]))
+                    # trajs_with_init.append(np.vstack([init_pos, init_pos]))
+                    traj_lengths.append(len(trajs_with_init[i]))
         else:
             trajs_with_init = trajs
             for i, traj in enumerate(trajs):
@@ -168,11 +208,14 @@ class TraceALine:
         # print(trajs_with_init)
         
         # fill trajectory with initial position if provided trajs are less than num of arms
-        if len(trajs_with_init) < self.robot.num_active_chains:
+        if self.side == "right":
             shape0 = trajs_with_init[0].shape
-            for i in range(len(trajs_with_init), self.robot.num_active_chains):
-                trajs_with_init.append(np.tile(np.array(self.init_position[i] + self.init_orientation[i]), shape0))
-                traj_lengths.append(len(trajs_with_init[i]))
+            trajs_with_init.append(np.tile(np.array(self.init_position[1] + self.init_orientation[1]), shape0))
+            traj_lengths.append(len(trajs_with_init[1]))
+        elif self.side == "left":
+            shape0 = trajs_with_init[0].shape
+            trajs_with_init.insert(0, np.tile(np.array(self.init_position[0] + self.init_orientation[0]), shape0))
+            traj_lengths.insert(0, len(trajs_with_init[0]))
         
         assert(all(l == traj_lengths[0] for l in traj_lengths))
         
@@ -188,16 +231,16 @@ class TraceALine:
             if self.use_topic_not_service:
                 self.ee_pose_pub = rospy.Publisher('relaxed_ik/ee_pose_goals', EEPoseGoals, queue_size=5)
                 self.ik_weight_pub = rospy.Publisher('relaxed_ik/ik_update_weight', IKUpdateWeight, queue_size=128)
-                self.ik_reset_pub = rospy.Publisher('relaxed_ik/reset', JointState, queue_size=5)
-                self.query_loss_pub = rospy.Publisher('relaxed_ik/query_loss', JointState, queue_size=5)
+                self.ik_reset_pub = rospy.Publisher('/relaxed_ik/reset_ja', ResetJointAngles, queue_size=5)
+                # self.query_loss_pub = rospy.Publisher('relaxed_ik/query_loss', JointState, queue_size=5)
             else:
                 rospy.wait_for_service('relaxed_ik/solve_pose')
                 self.ik_pose_service = rospy.ServiceProxy('relaxed_ik/solve_pose', IKPose)
             
-            loss = self.query_loss(starting_config)
-            print("Loss:", loss)
+            # loss = self.query_loss(starting_config)
+            # print("Loss:", loss)
             print(starting_config)
-            self.reset(starting_config)
+            
         
             count_down_rate = rospy.Rate(1)
             count_down = 3
@@ -207,7 +250,6 @@ class TraceALine:
                 if count_down == 0:
                     break
                 count_down_rate.sleep()
-
             self.timer = rospy.Timer(rospy.Duration(self.time_between / self.num_per_goal), self.timer_callback)
             self.ik_solver = None
             
@@ -216,8 +258,10 @@ class TraceALine:
             # print(self.ik_solver.weight_names)
             # loss = self.ik_solver.query_loss(starting_config)
             # print(f"Initial Loss: {loss}")
+            self.ik_solver.reset(starting_config)
             pass
             # print(self.trajectory)
+        self.starting_config = starting_config
             
     def generate_trajectory(self, trajs, num_per_goal):
         
@@ -258,24 +302,24 @@ class TraceALine:
             num_empty_updates = num_per_goal
             if self.start_from_init_pose and i == 0:
                 weight_updates.append({
-                    'eepos' : 50.0,
-                    'eequat' : 1.0,
+                    'eepos' : 500.0,
+                    'eequat' : 5.0,
                     'minvel'  : 0.5,
                     'minacc'  : 0.3,
                     'minjerk' : 0.1,
                     'selfcollision' : 0.01,
-                    'selfcollision_ee' : 0.05,
+                    'selfcollision_ee' : 2,
                     'envcollision': 0.5,
                     'maxmanip' : 3.0,
                 })
                 num_empty_updates -= 1
             elif self.start_from_init_pose and i == 1:
                 weight_updates.append({
-                    'eequat'  : 3.0,
+                    'eequat'  : 5.0,
                     'minvel'  : 0.7,
                     'minacc'  : 0.5,
                     'minjerk' : 0.3,
-                    'selfcollision_ee' : 0.5,
+                    'selfcollision_ee' : 2,
                     'envcollision': 10.0,
                     'jointlimit' : 3.0,
                 })
@@ -305,11 +349,11 @@ class TraceALine:
     
     def reset(self, config):
         # reset
-        print("RESET:", config)
-        js_msg = JointState()
-        js_msg.header.stamp = rospy.Time.now()
-        js_msg.name = self.robot.articulated_joint_names
-        js_msg.position = config
+        print("publish RESET:", config)
+        js_msg = ResetJointAngles()
+        js_msg.joint_angles = config
+        # if self.ik_reset_pub.get_num_connections() < 1:
+        #     raise AssertionError("aaa")
         self.ik_reset_pub.publish(js_msg)
     
     def query_loss(self, config):
@@ -327,7 +371,9 @@ class TraceALine:
             else:
                 rospy.signal_shutdown("Trajectory finished")
             return
-
+        if self.trajectory_index == 0:
+            self.reset(self.starting_config)
+            time.sleep(1)
         if self.use_topic_not_service:
             ee_pose_goals = EEPoseGoals()
             for i in range(self.robot.num_active_chains):
@@ -343,6 +389,7 @@ class TraceALine:
                 msg = IKUpdateWeight()
                 msg.weight_name = k
                 msg.value = v
+                print(msg)
                 self.ik_weight_pub.publish(msg)
         else:
             req = IKPoseRequest()
@@ -364,7 +411,7 @@ class TraceALine:
         assert self.ik_solver is not None, "IK Solver not initialized."
         assert args.no_ros, "This method is for no-ROS mode"
         ik_solutions = []
-        for j in range(len(self.trajectory)):
+        for j in tqdm(range(len(self.trajectory))):
             positions = []
             orientations = []
             tolerances = []
@@ -382,8 +429,8 @@ class TraceALine:
             ik_solution = self.ik_solver.solve_pose_goals(positions, orientations, tolerances)
             ik_solutions.append(ik_solution)
             loss = self.ik_solver.query_loss(ik_solution)
-            print(f"Loss: {loss}")
-            print(j)
+            # print(f"Loss: {loss}")
+            # print(j)
             
         return ik_solutions
     
@@ -403,10 +450,14 @@ if __name__ == '__main__':
     if not args.no_ros:
         rospy.init_node('LineTracing')
     
-    initial_file = None
-    if args.init:
-        initial_file = np.load(path_to_init + '/' + args.init)
-    trace_a_line = TraceALine(initial_file)
+    # initial_file = None
+    init_ik = None
+    # if args.init:
+    with open(f"{path_to_init}/ep{args.episode}_init_ub_positions_dict.pkl", "rb") as f:
+        init_ik = pickle.load(f)            
+        # initial_file = np.load(path_to_init + '/' + args.init)
+    trace_a_line = TraceALine(init_ik)
+    
     
     if not args.no_ros:
         rospy.spin()
@@ -414,9 +465,16 @@ if __name__ == '__main__':
     if args.no_ros:
         
         ik_list = trace_a_line.get_ik_list_from_traj()
-        ik_list = [movo_jointangles_rik2fik(x) for x in ik_list]
         
-        ik_arr = np.array(ik_list)
-        print(ik_arr.shape)
-        np.save(fpath + '/ik_seq.npy', ik_arr)
+        ik_arr = [movo_jointangles_rik2fik(x) for x in ik_list]
+        ik_arr = np.array(ik_arr)
+        np.save(f"{fpath}/ik_seq{trace_a_line.episode}.npy", ik_arr)
+        
+        
+        # Try another time to test the reset function
+        trace_a_line.ik_solver.reset(trace_a_line.starting_config)
+        ik_list_1 = trace_a_line.get_ik_list_from_traj()
+        # should be exactly the same
+        print(ik_list[-1])
+        print(ik_list_1[-1])
         
