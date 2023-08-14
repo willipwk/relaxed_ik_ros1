@@ -21,7 +21,7 @@ from visualization_msgs.msg import *
 import subprocess
 from urdf_parser_py.urdf import URDF
 from geometry_msgs.msg import Point
-from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals
+from relaxed_ik_ros1.msg import EEPoseGoals, EEVelGoals, ResetJointAngles
 
 path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
 animation_folder_path = path_to_src + '/animation_files/'
@@ -165,9 +165,17 @@ class RvizViewer:
                  'widget', [0.1,0.1,0.1], self.ee_poses[i], False)
             self.server.insert(pose_goal_marker)
 
-        print(self.robot.fk_all_frames(starting_config_translated))
+        # marker_test = make_marker_env('test',settings['base_links'][0], 'cuboid',[0.5,0.5,0.5], [1,1,1], [0,0,0,1], is_dynamic=0)
+        # self.server.insert(marker_test)
+
+        frame = self.robot.fk_all_frames(starting_config_translated)
+        
         # wait for robot state publisher to start
         rospy.sleep(2.0)
+        
+        print("all joint names:", self.robot.all_joint_names)
+        print("articulated joint names:", self.robot.articulated_joint_names)
+        # print(frame[1][-1])
         
         # move the robot in rviz to initial position
         for i in range(len(self.robot.articulated_joint_names)):
@@ -175,6 +183,12 @@ class RvizViewer:
                                                             settings['starting_config'][i]
         self.js_msg.header.stamp = rospy.Time.now()
         self.js_pub.publish(self.js_msg)
+        # ik_reset_pub = rospy.Publisher('/relaxed_ik/reset_ja', ResetJointAngles, queue_size=5)
+        
+        # js_msg = ResetJointAngles()
+        # js_msg.joint_angles = settings['starting_config']
+        # rospy.sleep(2.0)
+        # ik_reset_pub.publish(js_msg)
 
         rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointState, self.ja_solution_cb)
         rospy.Subscriber('/relaxed_ik/vis_ee_poses', EEPoseGoals, self.ee_pose_goal_cb)

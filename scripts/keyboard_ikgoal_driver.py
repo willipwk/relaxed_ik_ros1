@@ -12,6 +12,7 @@ from pynput import keyboard
 import yaml
 from geometry_msgs.msg import Pose, Twist, Vector3
 import numpy as np
+from math_utils import unpack_pose_xyz_euler
 
 path_to_src = rospkg.RosPack().get_path('relaxed_ik_ros1') + '/relaxed_ik_core'
 
@@ -62,9 +63,16 @@ class KeyboardInput:
         # self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]] 
         # self.orientation = [[0,0,0],[0,0,0]]
         
+        
         # two arms
-        self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]] 
-        self.orientation = [[0,0,0],[0,0,0]]
+        print(self.starting_ee_poses)
+        p0, p1 = unpack_pose_xyz_euler(self.starting_ee_poses[0]), unpack_pose_xyz_euler(self.starting_ee_poses[1])
+        # self.position = [[0.8,-0.5,0.8],[0.8,0.5,0.8]] 
+        # self.orientation = [[0,0,0],[0,0,0]]
+        self.position    = [list(p0[0]), list(p1[0])]
+        self.orientation = [list(p0[1]), list(p1[1])]
+        # print(self.position,self.orientation)
+        
         
         try:
             tolerances = rospy.get_param('~tolerances')

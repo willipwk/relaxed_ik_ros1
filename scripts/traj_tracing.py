@@ -141,7 +141,7 @@ class TraceALine:
                 for ik in initial_ik:
                     conf = list(movo_jointangles_fik2rik(ik, gripper_value=0.9))
                     self.ik_solver.reset(conf)
-                    loss = self.ik_solver.query_loss(conf)
+                    loss = sum(self.ik_solver.query_loss(conf))
                     # print(loss)
                     if loss < min_start_loss:
                         best_starting_config = conf
@@ -163,13 +163,21 @@ class TraceALine:
         #     trajs.append(np.load(path_to_src + '/traj_files/' + traj_file) + traj_offset)
         
         # for traj_name in args.traj:
-        #     trajs.append(np.load(path_to_trajs + '/' + traj_name) + traj_offset)
         if self.side == "both":
-            trajs.append(np.load(f"{path_to_trajs}/traject_6d_{self.episode}_right{self.left_map_id}.npy"))
-            trajs.append(np.load(f"{path_to_trajs}/traject_6d_{self.episode}_left{self.right_map_id}.npy"))
-        else:
-            trajs.append(np.load(f"{path_to_trajs}/traject_6d_{self.episode}_{self.side}{self.left_map_id}.npy"))
-
+            traj_right = np.load(f"{path_to_trajs}/traject_6d_{self.episode}_right{self.right_map_id}.npy")
+            traj_right[:, 2] = traj_right[:, 2] + 0.015
+            traj_left = np.load(f"{path_to_trajs}/traject_6d_{self.episode}_left{self.left_map_id}.npy")
+            traj_left[:, 2] = traj_left[:, 2] + 0.015
+            trajs.append(traj_right)
+            trajs.append(traj_left)
+        elif self.side == "left":
+            traj_left = np.load(f"{path_to_trajs}/traject_6d_{self.episode}_left{self.left_map_id}.npy")
+            traj_left[:, 2] = traj_left[:, 2] + 0.015
+            trajs.append(traj_left)
+        elif self.side == "right":
+            traj_right = np.load(f"{path_to_trajs}/traject_6d_{self.episode}_right{self.right_map_id}.npy")
+            traj_right[:, 2] = traj_right[:, 2] + 0.015
+            trajs.append(traj_right)
         # print(trajs[0].shape, trajs[1].shape)
         
         
@@ -301,7 +309,7 @@ class TraceALine:
         for i in range(num_keypoints - 1):
             num_empty_updates = num_per_goal
             if self.start_from_init_pose and i == 0:
-                weight_updates.append({
+                upd = {
                     'eepos' : 500.0,
                     'eequat' : 5.0,
                     'minvel'  : 0.5,
@@ -309,12 +317,17 @@ class TraceALine:
                     'minjerk' : 0.1,
                     'selfcollision' : 0.01,
                     'selfcollision_ee' : 2,
-                    'envcollision': 0.5,
                     'maxmanip' : 3.0,
-                })
+                }
+                for arm_idx in self.robot.num_chain:
+                    upd[f"envcollision_{arm_idx}"] = 0.5
+                
+                
+                weight_updates.append(upd)
                 num_empty_updates -= 1
             elif self.start_from_init_pose and i == 1:
-                weight_updates.append({
+                
+                upd = {
                     'eequat'  : 5.0,
                     'minvel'  : 0.7,
                     'minacc'  : 0.5,
@@ -322,7 +335,13 @@ class TraceALine:
                     'selfcollision_ee' : 2,
                     'envcollision': 10.0,
                     'jointlimit' : 3.0,
-                })
+                }
+                for arm_idx in self.robot.num_chain:
+                    if self.robot.is_active_chain[arm_idx]:
+                        upd[f"envcollision_{arm_idx}"] = 2.0
+                    else:
+                        upd[f"envcollision_{arm_idx}"] = 5.0
+                weight_updates.append(upd)
                 num_empty_updates -= 1
             for _ in range(num_empty_updates):
                 weight_updates.append({})
@@ -352,8 +371,6 @@ class TraceALine:
         print("publish RESET:", config)
         js_msg = ResetJointAngles()
         js_msg.joint_angles = config
-        # if self.ik_reset_pub.get_num_connections() < 1:
-        #     raise AssertionError("aaa")
         self.ik_reset_pub.publish(js_msg)
     
     def query_loss(self, config):
@@ -428,8 +445,8 @@ class TraceALine:
             # print(positions, orientations, tolerances)
             ik_solution = self.ik_solver.solve_pose_goals(positions, orientations, tolerances)
             ik_solutions.append(ik_solution)
-            loss = self.ik_solver.query_loss(ik_solution)
-            # print(f"Loss: {loss}")
+            losses = self.ik_solver.query_loss(ik_solution)
+            print(f"Loss: {losses}")
             # print(j)
             
         return ik_solutions

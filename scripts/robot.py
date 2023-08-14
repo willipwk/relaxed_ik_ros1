@@ -130,7 +130,6 @@ class Robot():
             pose = self.fk_single_chain(self.fk_p_kdls[i], ja, self.num_jnts[i])
             l = r
             if self.is_active_chain[i]:
-                print(ja)
                 poses.append(pose)
         
         return poses
