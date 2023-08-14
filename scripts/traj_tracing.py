@@ -78,7 +78,7 @@ class TraceALine:
         self.tolerances = []
         self.time_between = 2.0   # time between two keypoints
         self.num_per_goal = 50    # number of intermediate points between two keypoints
-        self.start_from_init_pose = False
+        self.start_from_init_pose = True
         self.side = args.side
         if self.side == "both":
             assert len(args.map_idx) == 2
@@ -86,7 +86,9 @@ class TraceALine:
             self.right_map_id = args.map_idx[1]
         elif self.side == "left":
             self.left_map_id = args.map_idx[0]
+            self.right_map_id = -1
         elif self.side == "right":
+            self.left_map_id = -1
             self.right_map_id = args.map_idx[0]
         else:
             raise NotImplementedError()
@@ -132,6 +134,7 @@ class TraceALine:
             initial_ik = initial_poses[self.left_map_id]
         elif self.side == "right":
             initial_ik = initial_poses[self.right_map_id]
+        assert len(initial_ik) > 0
         
         if initial_ik is not None:
             #if args.no_ros:
@@ -157,12 +160,14 @@ class TraceALine:
         self.starting_ee_poses = self.robot.fk(starting_config_translated)
         print(starting_config)
         print(self.starting_ee_poses)
+        # ipdb.set_trace()
         
         trajs = []
         # for traj_file in settings["traj_files"]:
         #     trajs.append(np.load(path_to_src + '/traj_files/' + traj_file) + traj_offset)
         
         # for traj_name in args.traj:
+        #     trajs.append(np.load(path_to_trajs + '/' + traj_name) + traj_offset)
         if self.side == "both":
             traj_right = np.load(f"{path_to_trajs}/traject_6d_{self.episode}_right{self.right_map_id}.npy")
             traj_right[:, 2] = traj_right[:, 2] + 0.015
@@ -178,6 +183,7 @@ class TraceALine:
             traj_right = np.load(f"{path_to_trajs}/traject_6d_{self.episode}_right{self.right_map_id}.npy")
             traj_right[:, 2] = traj_right[:, 2] + 0.015
             trajs.append(traj_right)
+
         # print(trajs[0].shape, trajs[1].shape)
         
         
@@ -319,7 +325,7 @@ class TraceALine:
                     'selfcollision_ee' : 2,
                     'maxmanip' : 3.0,
                 }
-                for arm_idx in self.robot.num_chain:
+                for arm_idx in range(self.robot.num_chain):
                     upd[f"envcollision_{arm_idx}"] = 0.5
                 
                 
@@ -336,7 +342,7 @@ class TraceALine:
                     'envcollision': 10.0,
                     'jointlimit' : 3.0,
                 }
-                for arm_idx in self.robot.num_chain:
+                for arm_idx in range(self.robot.num_chain):
                     if self.robot.is_active_chain[arm_idx]:
                         upd[f"envcollision_{arm_idx}"] = 2.0
                     else:
