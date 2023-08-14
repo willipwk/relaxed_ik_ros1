@@ -446,7 +446,8 @@ class TraceALine:
             ik_solution = self.ik_solver.solve_pose_goals(positions, orientations, tolerances)
             ik_solutions.append(ik_solution)
             losses = self.ik_solver.query_loss(ik_solution)
-            print(f"Loss: {losses}")
+            print(f"Total Loss: {sum(losses)}")
+            print(self.get_individual_loss(losses, ['eepos', "eequat"]))
             # print(j)
             
         return ik_solutions
@@ -461,6 +462,19 @@ class TraceALine:
                 ja_out.append(joint_angles[joint_idx])
                 
         return ja_out
+    
+    def get_individual_loss(self, losses, query):
+        assert self.ik_solver is not None
+        ret = {}
+        for k in query:
+            vals = []
+            for i, name in enumerate(self.ik_solver.weight_names):
+                if k == name:
+                    vals.append(losses[i])
+            ret[k] = vals
+        return ret
+                    
+                
     
 if __name__ == '__main__':
     fpath = os.path.dirname(os.path.abspath(__file__))
@@ -489,9 +503,9 @@ if __name__ == '__main__':
         
         
         # Try another time to test the reset function
-        trace_a_line.ik_solver.reset(trace_a_line.starting_config)
-        ik_list_1 = trace_a_line.get_ik_list_from_traj()
-        # should be exactly the same
-        print(ik_list[-1])
-        print(ik_list_1[-1])
+        # trace_a_line.ik_solver.reset(trace_a_line.starting_config)
+        # ik_list_1 = trace_a_line.get_ik_list_from_traj()
+        # # should be exactly the same
+        # print(ik_list[-1])
+        # print(ik_list_1[-1])
         
