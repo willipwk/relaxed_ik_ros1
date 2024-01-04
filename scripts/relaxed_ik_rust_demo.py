@@ -2,18 +2,18 @@ import ctypes
 import numpy as np
 import os, time, sys
 import sys
-import transformations as T
+import relaxed_ik_ros1.scripts.transformations as T
 import yaml
 
 from urdf_parser_py.urdf import URDF
-from kdl_parser import kdl_tree_from_urdf_model
+from relaxed_ik_ros1.scripts.kdl_parser import kdl_tree_from_urdf_model
 import PyKDL as kdl
-from robot import Robot
+from relaxed_ik_ros1.scripts.robot import Robot
 
 
 # make python find the package
-sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)) + '/../')
-from relaxed_ik_core.wrappers.python_wrapper import RelaxedIKRust, lib
+# sys.path.insert(1, os.path.dirname(os.path.abspath(__file__)) + '/../')
+from relaxed_ik_ros1.relaxed_ik_core.wrappers.python_wrapper import RelaxedIKRust, lib
 
 
 

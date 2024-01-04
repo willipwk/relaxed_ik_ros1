@@ -4,7 +4,7 @@ import numpy as np
 import os
 # import rospkg
 # import rospy
-import transformations as T
+import relaxed_ik_ros1.scripts.transformations as T
 
 # from geometry_msgs.msg import Pose, Vector3
 # from std_msgs.msg import Float32MultiArray, Bool, String
@@ -12,7 +12,7 @@ import transformations as T
 from timeit import default_timer as timer
 from urdf_parser_py.urdf import URDF
 import PyKDL
-from kdl_parser import kdl_tree_from_urdf_model
+from relaxed_ik_ros1.scripts.kdl_parser import kdl_tree_from_urdf_model
 import yaml
 
 class Robot():
@@ -97,7 +97,7 @@ class Robot():
         if self.use_ros:
             from geometry_msgs.msg import Pose
         else:
-            from math_utils import Pose7d as Pose
+            from relaxed_ik_ros1.scripts.math_utils import Pose7d as Pose
         assert len(joint_angles) == num_jnts, "length of input: {}, number of joints: {}".format(len(joint_angles), num_jnts)
     
         kdl_array = PyKDL.JntArray(num_jnts)
